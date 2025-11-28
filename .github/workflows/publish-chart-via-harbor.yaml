@@ -1,0 +1,41 @@
+name: Publish Helm chart to Harbor
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4.3.0
+        with:
+          version: v3.12.1
+
+      - name: Login to Harbor
+        env:
+          HARBOR_HOST: ${{ secrets.HARBOR_HOST }}
+          HARBOR_USERNAME: ${{ secrets.HARBOR_USERNAME }}
+          HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
+        run: |
+          echo "${HARBOR_PASSWORD}" | helm registry login "${HARBOR_HOST}" --username "${HARBOR_USERNAME}" --password-stdin
+
+      - name: Package chart
+        run: |
+          helm package ./charts/supabase
+
+      - name: Push package to Harbor
+        env:
+          HARBOR_HOST: ${{ secrets.HARBOR_HOST }}
+          HARBOR_PROJECT: ${{ secrets.HARBOR_PROJECT }}
+        run: |
+          # find the packaged tgz
+          CHART_TGZ=$(ls supabase-*.tgz)
+          echo "Pushing $CHART_TGZ to oci://${HARBOR_HOST}/${HARBOR_PROJECT}"
+          helm push "$CHART_TGZ" oci://"${HARBOR_HOST}"/"${HARBOR_PROJECT}"
